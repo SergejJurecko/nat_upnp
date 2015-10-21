@@ -153,21 +153,18 @@ soap_request(Url, Function, Msg0) ->
     Action = "\"urn:schemas-upnp-org:service:WANIPConnection:1#"
              ++ Function ++ "\"",
 
-    Headers = [{"Content-Length", integer_to_list(length(Msg))},
-               {"User-Agent", "Darwin/10.0.0, UPnP/1.0, MiniUPnPc/1.3"},
+    Headers = [{"User-Agent", "Darwin/10.0.0, UPnP/1.0, MiniUPnPc/1.3"},
                {"SOAPAction", Action},
-               {"Connection", "close"},
                {"Cache-Control", "no-cache"},
                {"Pragma", "no-cache"}],
 
 
-    Req = {Url, Headers, "text/xml; charset=\"utf-8\"", Msg},
-
-    case httpc:request(post, Req, [], []) of
-        {ok, {{_, 200, _}, _, Body}} ->
-            {ok, Body};
-        {ok, {{_, Status, _}, _, _}} ->
-            {error, integer_to_list(Status)};
+    % Req = {Url, Headers, "text/xml; charset=\"utf-8\"", Msg},
+    case util:http(Url, [{"Content-type","text/xml; charset=\"utf-8\""}|Headers], post, Msg) of
+        {ok, "200",_, Body} ->
+            {ok, binary_to_list(Body)};
+        {ok, Status, _, _} ->
+            {error, Status};
         Error ->
             Error
     end.
@@ -194,9 +191,9 @@ get_location(Type, Raw) ->
     end.
 
 get_service_url(RootUrl) ->
-    case httpc:request(RootUrl) of
-        {ok, {{_, 200, _}, _, Body}} ->
-            {Xml, _} = xmerl_scan:string(Body, [{space, normalize}]),
+    case util:http(RootUrl) of
+        {ok, "200", _, Body} ->
+            {Xml, _} = xmerl_scan:string(binary_to_list(Body), [{space, normalize}]),
             [Device | _] = xmerl_xpath:string("//device", Xml),
             case device_type(Device) of
                 "urn:schemas-upnp-org:device:InternetGatewayDevice:1" ->
@@ -204,8 +201,8 @@ get_service_url(RootUrl) ->
                 _ ->
                     {error,  no_gateway_device}
             end;
-        {ok, {{_, StatusCode, _}, _, _}} ->
-            {error, integer_to_list(StatusCode)};
+        {ok, StatusCode, _, _} ->
+            {error, StatusCode};
         Error ->
             Error
     end.
